@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<style>
+
+.q0 { fill:rgb(247,252,245);  }
+.q1 { fill:rgb(229,245,224); }
+.q2 { fill:rgb(199,233,192); }
+.q3 { fill:rgb(161,217,155); }
+.q4 { fill:rgb(116,196,118); }
+.q5 { fill:rgb(65,171,93); }
+.q6 { fill:rgb(35,139,69); }
+.q7 { fill:rgb(0,109,44); }
+.q8 { fill:rgb(0,68,27); }
+
+
+247,252,245
+229,245,224
+199,233,192
+161,217,155
+116,196,118
+65,171,93
+35,139,69
+0,109,44
+0,68,27
+
+
+
+#boroughs {
+  stroke: grey;
+	stroke-width: 2px;
+	fill: blue;
+}
+#container{
+    position: relative;
+    display: block;
+    background-color: #b1b1b1;
+    width: 1000px;
+    height: 1000px;
+    margin: 100px;
+    padding: 100px;
+}
+#chart{
+  position: absolute
+  font: 10px sans-serif;
+  background-color: steelblue;
+  text-align: right;
+  padding: 10px;
+  margin: 10px;
+  color: white;
+}
+.bar {
+  fill: blue;
+}
+
+.bar:hover {
+  fill: brown;
+}
+
+.axis {
+  font: 10px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.x.axis path {
+  display: none;
+}
+.d3-tip {
+  line-height: 2;
+  font-weight: bold;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  border-radius: 2px;
+}
+
+</style>
+
+<script src="d3.v3.min.js" charset="utf-8"></script>
+<script src="topojson.v1.min.js"></script>
+<script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+<body>
+
+<script>
+
+//make two svgs and put them in a container
+//set their top/bottom/left/ride attributes in css
+//use absolute positioning
+
+//Choropleth Stuff
+	var UsageByVertexId = d3.map();
+	var quantize = d3.scale.quantize()
+		.domain([0, 1])
+		.range(d3.range(9).map(function(i) { return "q" + i; }));
+
+
+//A tooltip for displaying the name of the station
+	var tooltip = d3.select("body")
+		.append("rec")
+		.style("padding","2px")
+		.style("border", "1px")		
+		.style("border-radius", "8px")
+		.style("position", "absolute")
+		.style("background","lightsteelblue")
+		.style("z-index", "10")
+		.style("visibility", "hidden")
+		.attr('title', '&#013')
+		.style('white-space', 'pre-line')
+		.text("a simple tooltip");
+
+	var width = 1600,
+	height = 1250;
+   
+//create the initial svg object
+	var svg = d3.select("body").append("svg")
+		.attr("width", width)
+		.attr("height", height);
+
+	var projection = d3.geo.mercator()
+  					.center([-73.76, 40.72])
+  					.scale(150000)
+  					.translate([(width) / 2, (height)/2]);
+
+	var path = d3.geo.path()
+			.projection(projection);
+
+	var g = svg.append("g");
+	
+	var tip = d3.tip()
+		.attr('class', 'd3-tip')
+		.offset([-10, 0])
+		.html(function(d) {
+		return "<strong>Name:</strong> <span style='color:red'>" + d.STATION + "</span>";
+		})
+	svg.call(tip);	
+	
+// Load and display NYC
+	d3.json("nyctopojson.json", function(error, topology) {
+		console.log(topojson.feature(topology,topology.objects.nycgeojson));
+		g.selectAll("path")
+		  .data(topojson.feature(topology,topology.objects.nycgeojson).features)
+		.enter()
+		  .append("path")
+		  .attr("d", path)
+		  .attr("stroke","black")
+		  .attr("stroke-width",1)
+		  .attr("fill", "white")
+	});
+ 
+	
+	var vertices=[];
+//Load up the data and do your thing!
+	var stat = d3.csv("MedianUsagebyDayDec2014toDec2015.csv", function(stats) {	
+	stats.forEach(function(d){
+	d.dENTRIES=+d.dENTRIES;
+	d.dEXITS=+d.dEXITS;
+	d.Station_Latitude=+d.Station_Latitude;
+	d.Station_Longitude=+d.Station_Longitude;
+	});
+
+//Custom function to compare arrays
+	// Warn if overriding existing method
+	if(Array.prototype.equals)
+    console.warn("Overriding existing Array.prototype.equals. Possible causes: New API defines the method, there's a framework conflict or you've got double inclusions in your code.");
+// attach the .equals method to Array's prototype to call it on any array
+	Array.prototype.equals = function (array) {
+    // if the other array is a falsy value, return
+    if (!array)
+        return false;
+
+    // compare lengths - can save a lot of time 
+    if (this.length != array.length)
+        return false;
+
+    for (var i = 0, l=this.length; i < l; i++) {
+        // Check if we have nested arrays
+        if (this[i] instanceof Array && array[i] instanceof Array) {
+            // recurse into the nested arrays
+            if (!this[i].equals(array[i]))
+                return false;       
+        }           
+        else if (this[i] != array[i]) { 
+            // Warning - two different object instances will never be equal: {x:20} != {x:20}
+            return false;   
+        }           
+    }       
+    return true;
+	}
+// Hide method from for-in loops
+	Object.defineProperty(Array.prototype, "equals", {enumerable: false});
+
+//custom indexOf to find coordinates inside of an array
+	function myIndexOf(arr) {    
+    for (var i = 0; i < coords.length; i++) {
+        if (coords[i][0] == arr[0] && coords[i][1] == arr[1]) {
+            return i;
+        }
+    }
+    return -1;
+	}	
+
+	var names=[];
+	var coords=[];	
+//filter out duplicate stations 
+	good = stats.filter(function (el) {
+	if(myIndexOf([el.Station_Latitude,el.Station_Longitude])==-1 && el.STATION !=='Pacific St' && el.STATION !=='Jackson Heights-Roosevelt Ave' && el.STATION !=='168th St - Washington Heights' && el.STATION !=='23rd St-Ely Av' && el.WEEKDAY=='0'  && (el.TIME=='8:00:00' || el.TIME=='08:00:00')){
+		//console.log("Made it past the check!");
+		names.push(el.STATION+" , "+el.LINENAME);
+		coords.push([el.Station_Latitude,el.Station_Longitude]);
+		vertices.push(projection([el.Station_Longitude,el.Station_Latitude]))
+		return true;
+		}else{
+		return false;}
+	});
+	console.log(names);
+//combine boundaries into one giant path
+	var combinedD = "";
+	g.selectAll("path")
+		.each(function() { combinedD += d3.select(this).attr("d"); });
+	//add the clipping path for the voroni cells
+	g.append("clipPath")
+	.attr("id", "boundary")
+	.append("path") 
+    .attr("d", combinedD)
+    .attr("stroke", "red")
+	.attr("stroke-width",1)
+	.attr("fill","none");
+
+	
+	
+//generate daily values for each region
+	var values = d3.range(vertices.length).map(function(d,i) {
+	
+//console.log(names[i])
+	var tempdata=stats.filter(function(el){
+//console.log(el.LINENAME+" vs "+names[i].substring(names[i].indexOf(' , ')+3));
+	if(el.STATION==names[i].substring(0,names[i].indexOf(' , ')) && el.LINENAME==names[i].substring(names[i].indexOf(' , ')+3)){
+	return true }else{return false};});
+	console.log(tempdata);
+	holder=[tempdata[1].dENTRIES/10000,tempdata[2].dENTRIES/10000,tempdata[3].dENTRIES/10000,tempdata[4].dENTRIES/10000,tempdata[5].dENTRIES/10000,tempdata[6].dENTRIES/10000,tempdata[7].dENTRIES/10000,tempdata[8].dENTRIES/10000,tempdata[9].dENTRIES/10000,tempdata[10].dENTRIES/10000,tempdata[11].dENTRIES/10000,tempdata[12].dENTRIES/10000,tempdata[13].dENTRIES/10000,tempdata[14].dENTRIES/10000,tempdata[15].dENTRIES/10000,tempdata[16].dENTRIES/10000,tempdata[17].dENTRIES/10000,tempdata[18].dENTRIES/10000,tempdata[19].dENTRIES/10000,tempdata[20].dENTRIES/10000,tempdata[21].dENTRIES/10000,tempdata[22].dENTRIES/10000,tempdata[23].dENTRIES/10000,tempdata[24].dENTRIES/10000,tempdata[25].dENTRIES/10000,tempdata[26].dENTRIES/10000,tempdata[27].dENTRIES/10000,tempdata[28].dENTRIES/10000,tempdata[29].dENTRIES/10000,tempdata[30].dENTRIES/10000,tempdata[31].dENTRIES/10000,tempdata[32].dENTRIES/10000,tempdata[33].dENTRIES/10000,tempdata[34].dENTRIES/10000,tempdata[35].dENTRIES/10000,tempdata[36].dENTRIES/10000,tempdata[37].dENTRIES/10000,tempdata[38].dENTRIES/10000,tempdata[39].dENTRIES/10000,tempdata[40].dENTRIES/10000,tempdata[41].dENTRIES/10000,tempdata[0].dENTRIES/10000,tempdata[0].dEXITS/10000,tempdata[1].dEXITS/10000,tempdata[2].dEXITS/10000,tempdata[3].dEXITS/10000,tempdata[4].dEXITS/10000,tempdata[5].dEXITS/10000,tempdata[6].dEXITS/10000,tempdata[7].dEXITS/10000,tempdata[8].dEXITS/10000,tempdata[9].dEXITS/10000,tempdata[10].dEXITS/10000,tempdata[11].dEXITS/10000,tempdata[12].dEXITS/10000,tempdata[13].dEXITS/10000,tempdata[14].dEXITS/10000,tempdata[15].dEXITS/10000,tempdata[16].dEXITS/10000,tempdata[17].dEXITS/10000,tempdata[18].dEXITS/10000,tempdata[19].dEXITS/10000,tempdata[20].dEXITS/10000,tempdata[21].dEXITS/10000,tempdata[22].dEXITS/10000,tempdata[23].dEXITS/10000,tempdata[24].dEXITS/10000,tempdata[25].dEXITS/10000,tempdata[26].dEXITS/10000,tempdata[27].dEXITS/10000,tempdata[28].dEXITS/10000,tempdata[29].dEXITS/10000,tempdata[30].dEXITS/10000,tempdata[31].dEXITS/10000,tempdata[32].dEXITS/10000,tempdata[33].dEXITS/10000,tempdata[34].dEXITS/10000,tempdata[35].dEXITS/10000,tempdata[36].dEXITS/10000,tempdata[37].dEXITS/10000,tempdata[38].dEXITS/10000,tempdata[39].dEXITS/10000,tempdata[40].dEXITS/10000,tempdata[41].dEXITS/10000,tempdata[0].dEXITS/10000]
+	sum=0;
+	avg=0;
+	for(j=0;j<84;j++){sum=sum+holder[j];}
+	avg=sum/84
+	UsageByVertexId.set(i,avg)
+    return holder;});
+	
+//add the voronoi polygons
+	g.selectAll("#voronoipaths")
+      .data(d3.geom.voronoi(vertices))
+	  .enter().append("svg:path")
+	  .attr("stroke", "blue")
+	  .attr("stroke-width", 1)
+	  .attr("class", function(d,i) { return quantize(UsageByVertexId.get(i)); })
+	  .attr("id","voronoipaths")
+	  .attr("clip-path", 'url(#boundary)')
+      .attr("d", function(d,i){
+	  return "M" + d.join(",") + "Z"; })
+	
+//Modify chart
+	
+	var currentstation=0;
+	g.selectAll("#voronoipaths")
+		.data(values)
+		.on("mouseover", function(d, i) {
+			//console.log(d);
+			//console.log(oldh)
+			d3.select(this)
+			.transition()
+			.duration(500)
+			.style('fill','blue')
+			tooltip.text(names[i])
+			tooltip.style("visibility", "visible");
+			tip.show;
+		})
+		.on("click", function(d, i) {
+		currentstation=i;
+			for (j=0;j<42;j++){ d3.selectAll("#column-"+j)
+				.transition()
+				.duration(500)
+				.attr('y',function(){return projection([-73.77, 40.71])[1]-d[j]*50+30;})
+				.attr('height',function(){return d[j]*50;})}
+			for (j=0;j<42;j++){ d3.selectAll("#column2-"+j)
+				.transition()
+				.duration(500)
+				.attr('y',function(){return projection([-73.77, 40.71])[1]-d[42+j]*50+30;})
+				.attr('height',function(){return d[42+j]*50;})}
+			d3.select("#Chartlabel")
+				.transition()
+				.duration(250)
+				.attr("stroke","white")
+				.each("end", function() {
+				d3.select(this).text(names[i])
+				.transition()
+				.duration(250)
+				.attr("stroke","black")
+				})
+		})
+		.on("mousemove", function(){return tooltip.style("top",
+		(d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");})
+		.on("mouseout", function(d, i) {
+			tip.hide;
+		  d3.select(this)
+			.transition()
+			.duration(500)
+			.style('fill',quantize(UsageByVertexId.get(i)).fill)
+			return tooltip.style("visibility", "hidden")}
+			);
+			
+//parameters to shift the graph
+	var xshift=270;
+	var yshift=0;
+//time text
+	var time=['12:00 am - 4:00 am','4:00 am - 8:00 am','8:00 am - 12:00 pm','12:00 pm - 4:00 pm','4:00 pm - 8:00 pm','8:00 pm - 12:00 am']
+	var dataset1 = [ 0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0];
+	var dataset2 = [ 0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0,0, 0, 0,0,0,0];
+	g.append("rect")
+	.attr("fill","white")
+	.attr("id","background")
+	.attr("stroke","black")
+	.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]-40+xshift;})
+	.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+270;})
+	.attr('width',590)
+	.attr('height', 500);
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+115+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+50;})
+		.attr('font-size',"18")
+		.attr('font-family','Sans-serif')
+		.text("Daily Subway Station Usage");
+	g.append("rect")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+350+xshift+20;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+45;})
+		.attr('fill',"rgba(0,0,255,.8)")
+		.attr("width","10")
+		.attr("height","10")
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+365+xshift+20;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+55;})
+		.attr('font-size',"13")
+		.attr('font-family','Sans-serif')
+		.text("Entries");
+	g.append("rect")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+350+xshift+20;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+65;})
+		.attr('fill',"rgba(255,0,0,.6)")
+		.attr("width","10")
+		.attr("height","10")
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+365+xshift+20;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+75;})
+		.attr('font-size',"13")
+		.attr('font-family','Sans-serif')
+		.text("Exits");
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+115+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+75;})
+		.attr('font-size',"15")
+		.attr('font-family','Sans-serif')
+		.text("Station Name")
+		.attr("id","Chartlabel")
+		
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+25+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+5;})
+		.attr('font-family','Sans-serif')
+		.style('white-space','pre')
+		.text("|    Mon.   |");
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+95+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+5;})
+		.style('white-space','pre')
+		.attr('font-family','Sans-serif')
+		.text("     Tue.    |");
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+165+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+5;})
+		.attr('font-family','Sans-serif')
+		.style('white-space','pre')
+		.text("     Wed.   |");
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+235+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+5;})
+		.attr('font-family','Sans-serif')
+		.style('white-space','pre')
+		.text("     Thur.  ");
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+313+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+5;})
+		.attr('font-family','Sans-serif')
+		.style('white-space','pre')
+		.text("|     Fri.     |");
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+374+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+5;})
+		.attr('font-family','Sans-serif')
+		.style('white-space','pre')
+		.text("        Sat.    |");
+	g.append("text")
+		.attr('x', function(d,i) {return projection([-73.78, 40.77])[0]+455+xshift;})
+		.attr('y', function(d,i) {return projection([-73.78, 40.89])[1]+665+5;})
+		.attr('font-family','Sans-serif')
+		.style('white-space','pre')
+		.text("      Sun.   |");
+	g.selectAll("#test")
+    .data(dataset1)
+    .enter()									
+    .append("rect")
+	.attr("fill","rgba(0,0,255,.8)")
+	.attr("id","test")
+    .attr('x', function(d,i) {return projection([-73.77, 40.77])[0]+(i*12)+xshift;})
+	.attr('y', function(d,i){return projection([-73.77, 40.71])[1]-d+30;})
+	.attr('width', 10)
+	.attr('height',function(d){return 2*d})	
+	.attr("id",function(d,i){return "column-"+i})
+	.on("mousemove", function(){return tooltip.style("top",
+		(d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");})
+	.on("mouseover", function(d, i) {
+			tooltip.text(time[i%6]+"\n"+"Entries: "+ Math.round(10000*values[currentstation][i])+" "+ ' \n '+ "Exits:"+ "   \t"+Math.round(10000*values[currentstation][i+42]))
+			tooltip.style("font","sans-serif")
+			tooltip.style("visibility", "visible");
+			
+			tip.show;
+		})
+	.on("mouseout", function(d, i) {
+			tooltip.style("visibility", "hidden");
+			tip.show;
+		})
+	g.selectAll("#test2")
+    .data(dataset2)
+    .enter()									
+    .append("rect")
+	.attr("fill","rgba(255,0,0,.6)")
+	.attr("id","test")
+    .attr('x', function(d,i) {return projection([-73.77, 40.77])[0]+(i*12)+xshift;})
+	.attr('y', function(d,i){return projection([-73.77, 40.71])[1]-d+30;})
+	.attr('width', 10)
+	.attr('height',function(d){return d})	
+	.attr("id",function(d,i){return "column2-"+i})	
+	.on("mousemove", function(){return tooltip.style("top",
+		(d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");})
+	.on("mouseover", function(d, i) {
+			tooltip.text(time[i%6]+"\n"+"Entries: "+ Math.round(10000*values[currentstation][i])+" "+ ' \n '+ "Exits:"+ "   \t"+Math.round(10000*values[currentstation][i+42]))
+			tooltip.style("font","sans-serif")
+			tooltip.style("visibility", "visible");
+			tip.show;
+		})
+	.on("mouseout", function(d, i) {
+			tooltip.style("visibility", "hidden");
+			tip.show;
+		})
+
+//add dots for stations
+	var radius=3;
+	g.selectAll("circle")
+		.data(good)
+		.enter()
+		.append("circle")
+		.attr('cx', function(d,i){
+			return projection([d.Station_Longitude,d.Station_Latitude])[0];})
+		.attr('cy', function(d){return projection([d.Station_Longitude,d.Station_Latitude])[1];})
+		.attr('r',radius)
+		.attr("fill", "black")
+		.attr("stroke","rgba(100,100,100,.5)")
+		.append("svg:title");
+	});
+	
+// A nice d3 axis
+	var y = d3.scale.linear()
+		.range([350, 0]);
+	var yAxis = d3.svg.axis()
+		.scale(y)
+		.orient("left")
+		.ticks(20);
+	y.domain([0, 70000]);
+	svg.append("g")
+      .attr("class", "y axis")
+	  .attr("transform", "translate(1040,340)")
+      .call(yAxis)
+      .append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 6)
+      .attr("dy", ".71em")
+      .style("text-anchor", "end")
+      .text("Usage");
+</script>
+<body>
+
+</body>
+</html>
